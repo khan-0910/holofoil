@@ -2,116 +2,127 @@ import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
+import { ArrowLeft, Minus, Plus } from "lucide-react";
 import HoloCard from "@/components/HoloCard";
-import Magnet from "@/components/Magnet";
-import { byId, CARDS, money, TYPE_STYLE } from "@/lib/cards";
+import Tile from "@/components/Tile";
+import { byId, STOCK, TYPE_DOT } from "@/data/stock";
+import { CURRENCIES, format } from "@/lib/currency";
 import { useStore } from "@/lib/store";
 
 export default function CardPage() {
   const { id = "" } = useParams();
   const card = byId(id);
-  const { add, notify, setDrawer, cart } = useStore();
+  const { add, notify, cart, price, currency } = useStore();
   const [qty, setQty] = useState(1);
   const root = useRef<HTMLDivElement>(null);
   const cardEl = useRef<HTMLDivElement>(null);
 
   useGSAP(() => {
     if (!card) return;
-    gsap.from(cardEl.current, { rotateY: -180, scale: 0.6, opacity: 0, duration: 1.3, ease: "expo.out" });
-    gsap.from(".info > *", { x: 40, opacity: 0, stagger: 0.07, duration: 0.8, ease: "power3.out", delay: 0.2 });
+    gsap.from(".info > *", { y: 10, opacity: 0, stagger: 0.04, duration: 0.4 });
   }, { scope: root, dependencies: [id] });
 
   if (!card) {
     return (
-      <div className="px-6 pb-24 pt-40 text-center">
-        <p className="text-2xl font-bold">That card isn't in the case.</p>
-        <Link to="/shop" className="btn btn-lime mt-6">Back to the shop</Link>
+      <div className="px-6 pt-40 text-center">
+        <p className="text-[20px]">This card isn’t in stock</p>
+        <Link to="/shop" className="btn btn-primary mt-6">Back to all cards</Link>
       </div>
     );
   }
 
-  const t = TYPE_STYLE[card.type];
   const inCart = cart.find((l) => l.id === card.id)?.qty ?? 0;
-  const left = card.stock - inCart;
-  const related = CARDS.filter((c) => c.type === card.type && c.id !== card.id).slice(0, 4);
+  const left = card.qty - inCart;
+  const related = STOCK.filter((c) => c.type === card.type && c.id !== card.id).slice(0, 4);
 
   const buy = () => {
     if (left <= 0) return;
     const n = Math.min(qty, left);
     add(card.id, n);
-    notify(`${n} × ${card.name} added`);
-    // fly a ghost of the card to the cart button
+    setQty(1);
+    notify(`${n} × ${card.name} added to cart`);
+    // a small copy of the card travels to the cart button, so it's clear where it went
     const from = cardEl.current?.getBoundingClientRect();
     const to = document.querySelector("[aria-label^='Open cart']")?.getBoundingClientRect();
     if (from && to && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const ghost = document.createElement("div");
-      ghost.style.cssText = `position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;height:${from.height}px;border-radius:16px;z-index:70;pointer-events:none;background:linear-gradient(160deg,${t.from},${t.to})`;
+      const ghost = cardEl.current!.querySelector("img")?.cloneNode() as HTMLImageElement | undefined;
+      if (!ghost) return;
+      ghost.style.cssText = `position:fixed;left:${from.left}px;top:${from.top}px;width:${from.width}px;z-index:70;pointer-events:none;border-radius:8px`;
       document.body.appendChild(ghost);
       gsap.to(ghost, {
-        left: to.left + to.width / 2 - 10, top: to.top + to.height / 2 - 14, width: 20, height: 28,
-        rotate: 25, duration: 0.8, ease: "power3.in", onComplete: () => ghost.remove(),
+        left: to.left + to.width / 2 - 10, top: to.top + 4, width: 20, opacity: 0.6,
+        duration: 0.5, ease: "power2.in", onComplete: () => ghost.remove(),
       });
     }
   };
 
   return (
-    <div ref={root} className="mx-auto max-w-6xl px-4 pb-24 pt-32 sm:px-6">
-      <Link to="/shop" className="text-sm text-dim hover:text-bone">← Back to the case</Link>
-      <div className="mt-8 grid items-center gap-12 md:grid-cols-2">
-        <div className="relative [perspective:1200px]">
-          <div aria-hidden className="absolute inset-[-10%] rounded-full blur-3xl" style={{ background: `radial-gradient(circle, ${t.from}55, transparent 65%)` }} />
-          <div ref={cardEl} className="relative mx-auto w-full max-w-[380px]">
-            <HoloCard card={card} />
+    <div ref={root} className="mx-auto max-w-[1280px] px-6 pt-24 sm:px-8">
+      <Link to="/shop" className="inline-flex items-center gap-2 text-[14px] text-ink-2 hover:text-ink">
+        <ArrowLeft size={16} strokeWidth={1.5} />
+        All cards
+      </Link>
+      <div className="mt-8 grid gap-12 md:grid-cols-[1fr_1fr] md:gap-16">
+        <div className="rounded-[20px] bg-felt p-10 sm:p-16">
+          <div ref={cardEl} className="relative mx-auto max-w-[360px]">
+            <HoloCard card={card} large eager />
           </div>
         </div>
 
-        <div className="info">
-          <p className="font-mono text-xs uppercase tracking-[0.3em] text-dim">{card.set} · {card.number} · {card.year}</p>
-          <h1 className="mt-3 font-display text-[clamp(44px,7vw,84px)] font-extrabold leading-[0.95] tracking-[-0.04em]">{card.name}</h1>
-          <div className="mt-5 flex flex-wrap gap-2 text-sm">
-            <span className="rounded-full px-3 py-1 font-bold text-night" style={{ background: t.from }}>{t.label}</span>
-            <span className="rounded-full border border-line px-3 py-1">{card.rarity}</span>
-            <span className="rounded-full border border-line px-3 py-1">{card.condition}</span>
-            <span className="rounded-full border border-line px-3 py-1">HP {card.hp}</span>
-          </div>
-          <p className="mt-8 font-display text-6xl font-extrabold">{money(card.price)}</p>
-          <p className={`mt-2 text-sm ${left <= 2 ? "text-pink" : "text-dim"}`}>
-            {left <= 0 ? "All copies are in your cart." : `${left} left in stock`}
+        <div className="info self-center">
+          <p className="font-mono text-[12px] text-ink-3">{card.set} · {card.year} · {card.id}</p>
+          <h1 className="mt-3 font-serif text-[44px] leading-[1.05] tracking-[-0.02em] sm:text-[56px] sm:tracking-[-0.03em]">{card.name}</h1>
+          <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-hair text-[14px] shadow-[inset_0_0_0_1px_var(--color-hair)]">
+            {[
+              ["Rarity", card.rarity],
+              ["Condition", card.condition],
+              ["Type", card.type],
+              ["In stock", String(card.qty)],
+            ].map(([k, v]) => (
+              <div key={k} className="bg-card px-4 py-3">
+                <dt className="text-[13px] text-ink-3">{k}</dt>
+                <dd className="mt-0.5 flex items-center gap-2">
+                  {k === "Type" && <span className="h-2 w-2 rounded-full" style={{ background: TYPE_DOT[card.type] }} aria-hidden />}
+                  {v}
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          <p className="tnum mt-8 font-mono text-[32px] leading-none">{price(card.usd)}</p>
+          <p className="tnum mt-2 font-mono text-[12px] text-ink-3">
+            {CURRENCIES.filter((c) => c.code !== currency).map((c) => format(card.usd, c.code)).join(" · ")}
           </p>
 
-          <div className="mt-8 flex items-center gap-3">
-            <div className="flex items-center rounded-full border border-line">
-              <button className="h-12 w-12 text-xl" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Fewer">−</button>
-              <span className="w-8 text-center font-mono" aria-live="polite">{qty}</span>
-              <button className="h-12 w-12 text-xl" onClick={() => setQty((q) => Math.min(Math.max(1, left), q + 1))} aria-label="More">+</button>
-            </div>
-            <Magnet padding={40} magnetStrength={4}>
-              <button className="btn btn-lime px-8 text-lg disabled:opacity-40" disabled={left <= 0} onClick={buy}>
-                Add to binder
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="flex h-11 items-center rounded-[10px] shadow-[inset_0_0_0_1px_var(--color-hair-2)]">
+              <button className="grid h-11 w-11 place-items-center text-ink-2" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Fewer">
+                <Minus size={16} strokeWidth={1.5} />
               </button>
-            </Magnet>
-            <button className="btn btn-ghost" onClick={() => setDrawer(true)}>View cart</button>
+              <span className="tnum w-6 text-center font-mono text-[14px]" aria-live="polite">{qty}</span>
+              <button className="grid h-11 w-11 place-items-center text-ink-2" onClick={() => setQty((q) => Math.min(Math.max(1, left), q + 1))} aria-label="More">
+                <Plus size={16} strokeWidth={1.5} />
+              </button>
+            </div>
+            <button className="btn btn-primary" disabled={left <= 0} onClick={buy}>
+              {left <= 0 ? (card.qty === 0 ? "Sold out" : "All copies in cart") : "Add to cart"}
+            </button>
           </div>
+          {left > 0 && left <= 2 && <p className="mt-3 text-[13px] text-bad">Only {left} left</p>}
 
-          <ul className="mt-10 space-y-2 border-t border-line pt-6 text-sm text-dim">
-            <li>Ships in a penny sleeve and top-loader, inside a bubble mailer.</li>
-            <li>Raw cards are checked under light for whitening, scratches and centring.</li>
-            <li>Graded slabs are listed with the grade shown on the label.</li>
+          <ul className="mt-10 space-y-2 border-t border-hair pt-6 text-[14px] text-ink-2">
+            <li>Ships in a penny sleeve and top-loader, inside a padded mailer</li>
+            <li>Raw cards are checked under light for whitening, scratches and centring</li>
+            <li>Graded cards are listed with the grade on the slab label</li>
           </ul>
         </div>
       </div>
 
       {related.length > 0 && (
-        <section className="mt-28">
-          <h2 className="font-display text-3xl font-extrabold">More {t.label} cards</h2>
-          <div className="mt-6 grid grid-cols-2 gap-5 md:grid-cols-4">
-            {related.map((c) => (
-              <Link key={c.id} to={`/card/${c.id}`}>
-                <HoloCard card={c} />
-                <p className="mt-3 font-bold">{c.name}</p>
-                <p className="font-mono text-sm text-dim">{money(c.price)}</p>
-              </Link>
-            ))}
+        <section className="mt-24">
+          <h2 className="font-serif text-[32px] tracking-[-0.02em]">More {card.type} cards</h2>
+          <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-12 md:grid-cols-4">
+            {related.map((c) => <Tile key={c.id} card={c} />)}
           </div>
         </section>
       )}

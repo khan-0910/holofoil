@@ -2,61 +2,39 @@ import { useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
-import { money, type Card } from "@/lib/cards";
-import HoloCard from "@/components/HoloCard";
+import { Check } from "lucide-react";
+import { image } from "@/data/stock";
+import { format } from "@/lib/currency";
 import { useStore, type Order } from "@/lib/store";
-import { byId } from "@/lib/cards";
 
 export default function Checkout() {
-  const { user, cartCards, subtotal, placeOrder } = useStore();
+  const { user, cartCards, subtotal, shipping, placeOrder, price } = useStore();
   const [done, setDone] = useState<Order | null>(null);
   const root = useRef<HTMLDivElement>(null);
-  const shipping = subtotal >= 100 ? 0 : 6;
 
   useGSAP(() => {
-    if (done) {
-      const tl = gsap.timeline();
-      tl.from(".ok-card", { y: 300, rotate: (i) => (i - 1) * 30, opacity: 0, stagger: 0.12, duration: 1.1, ease: "back.out(1.6)" })
-        .from(".ok-text > *", { y: 30, opacity: 0, stagger: 0.08, duration: 0.6 }, "-=0.6");
-      // confetti made of tiny foil cards
-      const box = root.current!;
-      for (let i = 0; i < 60; i++) {
-        const p = document.createElement("i");
-        p.style.cssText = `position:absolute;left:50%;top:40%;width:8px;height:11px;border-radius:2px;pointer-events:none;background:hsl(${Math.random() * 360} 90% 65%)`;
-        box.appendChild(p);
-        gsap.to(p, {
-          x: gsap.utils.random(-500, 500), y: gsap.utils.random(-300, 400), rotate: gsap.utils.random(-720, 720),
-          opacity: 0, duration: gsap.utils.random(1.4, 2.6), ease: "power2.out", onComplete: () => p.remove(),
-        });
-      }
-    } else {
-      gsap.from(".co-in", { y: 30, opacity: 0, stagger: 0.06, duration: 0.6, ease: "power3.out" });
-    }
+    gsap.from(".co-in", { y: 10, opacity: 0, stagger: 0.05, duration: 0.4 });
   }, { scope: root, dependencies: [done] });
 
   if (!user) return <Navigate to="/login?next=/checkout" replace />;
 
   if (done) {
-    const shown = done.items.slice(0, 3).map((it) => byId(it.id)).filter(Boolean) as Card[];
     return (
-      <div ref={root} className="relative overflow-hidden px-4 pb-24 pt-36 text-center">
-        <div className="relative mx-auto flex h-[260px] max-w-md items-end justify-center">
-          {shown.map((c, i) => (
-            <div key={c.id} className="ok-card absolute bottom-0 w-[150px]" style={{ transform: `translateX(${(i - (shown.length - 1) / 2) * 70}%) rotate(${(i - (shown.length - 1) / 2) * 10}deg)` }}>
-              <HoloCard card={c} interactive={false} />
-            </div>
+      <div ref={root} className="mx-auto max-w-[560px] px-6 pt-36 text-center">
+        <span className="co-in mx-auto grid h-12 w-12 place-items-center rounded-full bg-felt-soft text-felt">
+          <Check size={20} strokeWidth={1.5} />
+        </span>
+        <h1 className="co-in mt-6 font-serif text-[44px] leading-[1.1] tracking-[-0.02em]">Order placed</h1>
+        <p className="co-in mt-3 font-mono text-[13px] text-ink-3">{done.id} · {format(done.totalUsd, done.currency)}</p>
+        <div className="co-in mt-8 flex justify-center -space-x-6">
+          {done.items.slice(0, 5).map((it, i) => (
+            <img key={it.id} src={image(it.id)} alt="" className="h-[112px] w-[80px] rounded-[5px] object-cover shadow-[0_8px_24px_rgba(0,0,0,0.12)]" style={{ transform: `rotate(${(i - Math.min(done.items.length, 5) / 2 + 0.5) * 5}deg)` }} />
           ))}
         </div>
-        <div className="ok-text mx-auto mt-10 max-w-lg">
-          <p className="font-mono text-sm text-lime">ORDER {done.id}</p>
-          <h1 className="mt-3 font-display text-6xl font-extrabold tracking-[-0.04em]">Pulled it.</h1>
-          <p className="mt-4 text-dim">
-            {money(done.total)} order placed. This is a demo shop, so nothing was charged and nothing will ship.
-          </p>
-          <div className="mt-8 flex justify-center gap-3">
-            <Link to="/account" className="btn btn-lime">See my orders</Link>
-            <Link to="/shop" className="btn btn-ghost">Keep shopping</Link>
-          </div>
+        <p className="co-in mt-8 text-ink-2">This is a demo shop, so nothing was charged and nothing will ship.</p>
+        <div className="co-in mt-8 flex justify-center gap-3">
+          <Link to="/account" className="btn btn-primary">View orders</Link>
+          <Link to="/shop" className="btn btn-secondary">Keep browsing</Link>
         </div>
       </div>
     );
@@ -64,41 +42,43 @@ export default function Checkout() {
 
   if (cartCards.length === 0) {
     return (
-      <div className="px-6 pb-24 pt-40 text-center">
-        <p className="text-2xl font-bold">Your binder is empty.</p>
-        <Link to="/shop" className="btn btn-lime mt-6">Find a card</Link>
+      <div className="px-6 pt-40 text-center">
+        <p className="text-[20px]">Your cart is empty</p>
+        <Link to="/shop" className="btn btn-primary mt-6">Browse cards</Link>
       </div>
     );
   }
 
   return (
-    <div ref={root} className="mx-auto max-w-4xl px-4 pb-24 pt-32 sm:px-6">
-      <h1 className="co-in font-display text-6xl font-extrabold tracking-[-0.04em]">Checkout.</h1>
-      <p className="co-in mt-3 text-dim">Signed in as {user.email}</p>
+    <div ref={root} className="mx-auto max-w-[720px] px-6 pt-28">
+      <h1 className="co-in font-serif text-[44px] leading-[1.1] tracking-[-0.02em]">Checkout</h1>
+      <p className="co-in mt-2 text-ink-2">Signed in as {user.email}</p>
 
-      <div className="co-in mt-10 divide-y divide-line rounded-3xl border border-line bg-night-2">
-        {cartCards.map(({ card, qty }) => (
-          <div key={card.id} className="flex items-center justify-between gap-4 px-6 py-4">
-            <div className="min-w-0">
-              <p className="truncate font-bold">{card.name}</p>
-              <p className="text-sm text-dim">{qty} × {money(card.price)} · {card.condition}</p>
-            </div>
-            <p className="font-mono">{money(card.price * qty)}</p>
-          </div>
-        ))}
-        <div className="space-y-1 px-6 py-5 text-sm">
-          <div className="flex justify-between text-dim"><span>Subtotal</span><span className="font-mono">{money(subtotal)}</span></div>
-          <div className="flex justify-between text-dim"><span>Tracked shipping</span><span className="font-mono">{shipping ? money(shipping) : "Free"}</span></div>
-          <div className="flex justify-between pt-2 text-xl font-bold"><span>Total</span><span className="font-mono">{money(subtotal + shipping)}</span></div>
+      <div className="co-in mt-8 rounded-2xl bg-card shadow-[inset_0_0_0_1px_var(--color-hair)]">
+        <ul className="divide-y divide-hair">
+          {cartCards.map(({ card, qty }) => (
+            <li key={card.id} className="flex items-center gap-4 px-5 py-4">
+              <img src={image(card.id)} alt="" className="h-[56px] w-[40px] rounded-[3px] object-cover" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{card.name}</p>
+                <p className="text-[13px] text-ink-2">{qty} × {price(card.usd)} · {card.condition}</p>
+              </div>
+              <p className="tnum font-mono text-[14px]">{price(card.usd * qty)}</p>
+            </li>
+          ))}
+        </ul>
+        <div className="space-y-2 border-t border-hair px-5 py-4 text-[14px]">
+          <div className="flex justify-between text-ink-2"><span>Subtotal</span><span className="tnum font-mono">{price(subtotal)}</span></div>
+          <div className="flex justify-between text-ink-2"><span>Tracked shipping</span><span className="tnum font-mono">{shipping ? price(shipping) : "Free"}</span></div>
+          <div className="flex justify-between pt-2 text-[17px] font-medium"><span>Total</span><span className="tnum font-mono">{price(subtotal + shipping)}</span></div>
         </div>
       </div>
 
-      <div className="co-in mt-6 rounded-3xl border border-dashed border-line p-6 text-sm text-dim">
-        Demo checkout: there's no payment step, and placing the order only saves it to your account in this browser.
-      </div>
-
-      <button className="co-in btn btn-lime mt-6 w-full text-lg" onClick={() => setDone(placeOrder())}>
-        Place order · {money(subtotal + shipping)}
+      <p className="co-in mt-4 text-[13px] text-ink-3">
+        Demo checkout: there’s no payment step. Placing the order saves it to your account in this browser.
+      </p>
+      <button className="co-in btn btn-primary mt-6 w-full" onClick={() => setDone(placeOrder())}>
+        Place order · {price(subtotal + shipping)}
       </button>
     </div>
   );

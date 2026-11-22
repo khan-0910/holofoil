@@ -3,58 +3,70 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import CountUp from "@/components/CountUp";
-import { byId, money } from "@/lib/cards";
+import { byId, image } from "@/data/stock";
+import { format } from "@/lib/currency";
 import { useStore } from "@/lib/store";
 
 export default function Account() {
-  const { user, orders, logout, notify } = useStore();
+  const { user, orders, logout, notify, price } = useStore();
   const nav = useNavigate();
   const root = useRef<HTMLDivElement>(null);
 
   useGSAP(() => {
-    gsap.from(".ac-in", { y: 30, opacity: 0, stagger: 0.07, duration: 0.7, ease: "power3.out" });
+    gsap.from(".ac-in", { y: 10, opacity: 0, stagger: 0.04, duration: 0.4 });
   }, { scope: root });
 
   if (!user) return <Navigate to="/login" replace />;
-  const spent = orders.reduce((s, o) => s + o.total, 0);
+  const spentUsd = orders.reduce((s, o) => s + o.totalUsd, 0);
   const cards = orders.reduce((s, o) => s + o.items.reduce((a, i) => a + i.qty, 0), 0);
 
   return (
-    <div ref={root} className="mx-auto max-w-4xl px-4 pb-24 pt-32 sm:px-6">
+    <div ref={root} className="mx-auto max-w-[880px] px-6 pt-28">
       <div className="ac-in flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-sm text-dim">{user.email}</p>
-          <h1 className="font-display text-6xl font-extrabold tracking-[-0.04em]">Hey, {user.name.split(" ")[0]}.</h1>
+          <h1 className="font-serif text-[44px] leading-[1.1] tracking-[-0.02em]">Account</h1>
+          <p className="mt-1 text-ink-2">{user.name} · {user.email}</p>
         </div>
-        <button className="btn btn-ghost" onClick={() => { logout(); notify("Signed out"); nav("/"); }}>Sign out</button>
+        <button className="btn btn-secondary btn-sm" onClick={() => { logout(); notify("Signed out"); nav("/"); }}>Sign out</button>
       </div>
 
-      <div className="ac-in mt-10 grid gap-px overflow-hidden rounded-3xl border border-line bg-line sm:grid-cols-3">
-        <div className="bg-night-2 p-6"><CountUp to={orders.length} className="font-display text-5xl font-extrabold" /><p className="text-dim">orders</p></div>
-        <div className="bg-night-2 p-6"><CountUp to={cards} className="font-display text-5xl font-extrabold" /><p className="text-dim">cards pulled</p></div>
-        <div className="bg-night-2 p-6"><CountUp to={spent} prefix="$" className="font-display text-5xl font-extrabold" /><p className="text-dim">spent (pretend)</p></div>
+      <div className="ac-in mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl bg-card p-5 shadow-[inset_0_0_0_1px_var(--color-hair)]">
+          <p className="text-[13px] text-ink-2">Orders</p>
+          <CountUp to={orders.length} className="tnum mt-2 block font-mono text-[28px] leading-none" />
+        </div>
+        <div className="rounded-2xl bg-card p-5 shadow-[inset_0_0_0_1px_var(--color-hair)]">
+          <p className="text-[13px] text-ink-2">Cards bought</p>
+          <CountUp to={cards} className="tnum mt-2 block font-mono text-[28px] leading-none" />
+        </div>
+        <div className="rounded-2xl bg-card p-5 shadow-[inset_0_0_0_1px_var(--color-hair)]">
+          <p className="text-[13px] text-ink-2">Spent, demo</p>
+          <p className="tnum mt-2 font-mono text-[28px] leading-none">{price(spentUsd)}</p>
+        </div>
       </div>
 
-      <h2 className="ac-in mt-14 font-display text-3xl font-extrabold">Order history</h2>
+      <h2 className="ac-in mt-12 text-[17px] font-medium">Order history</h2>
       {orders.length === 0 ? (
-        <p className="ac-in mt-4 rounded-3xl border border-dashed border-line p-10 text-center text-dim">
-          No orders yet. <Link to="/shop" className="font-bold text-lime">Go find something shiny.</Link>
+        <p className="ac-in mt-4 rounded-2xl p-10 text-center text-ink-2 shadow-[inset_0_0_0_1px_var(--color-hair)]">
+          No orders yet. <Link to="/shop" className="font-medium text-felt">Browse cards</Link>
         </p>
       ) : (
-        <div className="mt-4 space-y-3">
+        <ul className="ac-in mt-4 divide-y divide-hair rounded-2xl bg-card shadow-[inset_0_0_0_1px_var(--color-hair)]">
           {orders.map((o) => (
-            <div key={o.id} className="ac-in rounded-3xl border border-line bg-night-2 p-5">
-              <div className="flex flex-wrap justify-between gap-2">
-                <p className="font-mono text-lime">{o.id}</p>
-                <p className="text-sm text-dim">{new Date(o.placed).toLocaleString()}</p>
+            <li key={o.id} className="flex items-center gap-4 px-5 py-4">
+              <div className="flex shrink-0 -space-x-3">
+                {o.items.slice(0, 3).map((i) => (
+                  <img key={i.id} src={image(i.id)} alt="" className="h-[48px] w-[34px] rounded-[3px] object-cover shadow-[0_0_0_2px_var(--color-card)]" />
+                ))}
               </div>
-              <p className="mt-2 text-sm text-dim">
-                {o.items.map((i) => `${i.qty} × ${byId(i.id)?.name ?? i.id}`).join(", ")}
-              </p>
-              <p className="mt-2 font-bold">{money(o.total)}</p>
-            </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px]">{o.items.map((i) => `${i.qty} × ${byId(i.id)?.name ?? i.id}`).join(", ")}</p>
+                <p className="font-mono text-[12px] text-ink-3">{o.id} · {new Date(o.placed).toLocaleDateString()}</p>
+              </div>
+              <p className="tnum font-mono text-[14px]">{format(o.totalUsd, o.currency)}</p>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

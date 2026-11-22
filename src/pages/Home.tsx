@@ -3,191 +3,150 @@ import { Link } from "react-router-dom";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import { ArrowRight } from "lucide-react";
 import SplitText from "@/components/SplitText";
-import Magnet from "@/components/Magnet";
 import CountUp from "@/components/CountUp";
-import ScrollVelocity from "@/components/ScrollVelocity";
 import HoloCard from "@/components/HoloCard";
-import { byId, CARDS, money } from "@/lib/cards";
+import Tile from "@/components/Tile";
+import { byId, STOCK } from "@/data/stock";
 import { useStore } from "@/lib/store";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const HERO = ["umbreon-vmax", "charizard-ex", "pikachu-vmax", "gengar-vmax", "rayquaza-vmax"].map((id) => byId(id)!);
-const PACK = ["blastoise-ex", "mewtwo-gx", "leafeon-vmax", "darkrai-vstar", "gardevoir-ex"].map((id) => byId(id)!);
-const FEATURED = CARDS.filter((c) => c.rarity === "Secret Rare").slice(0, 6);
+const HERO = ["sv3pt5-200", "sv8pt5-161", "sv3pt5-199"].map((id) => byId(id)!);
+const PACK = ["sv3pt5-198", "swsh7-215", "sv4pt5-232", "swsh4-188", "sv3-223"].map((id) => byId(id)!);
+const TOP = [...STOCK].sort((a, b) => b.usd - a.usd).slice(0, 8);
+const COPIES = STOCK.reduce((s, c) => s + c.qty, 0);
+const SETS = new Set(STOCK.map((c) => c.set)).size;
+const OLDEST = Math.min(...STOCK.map((c) => c.year));
 
 export default function Home() {
   const root = useRef<HTMLDivElement>(null);
-  const { add, notify } = useStore();
+  const { price } = useStore();
+  const lead = HERO[1];
 
   useGSAP(() => {
     const mm = gsap.matchMedia();
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      // hero: cards deal in from below and fan out
-      gsap.from(".hero-card", {
-        y: 420, rotate: 0, opacity: 0, duration: 1.4, stagger: 0.09, ease: "expo.out", delay: 0.25,
-      });
-      gsap.from(".hero-sub", { y: 24, opacity: 0, duration: 0.9, delay: 0.8, stagger: 0.1, ease: "power3.out" });
-      // fan drifts apart as you scroll away
-      gsap.to(".hero-fan", {
-        yPercent: 18, scale: 0.92, ease: "none",
-        scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: true },
-      });
+      // one entrance: the copy and the mat rise together
+      gsap.from(".hero-in", { y: 10, opacity: 0, duration: 0.5, stagger: 0.05, delay: 0.3 });
+      gsap.from(".hero-card", { y: 24, opacity: 0, duration: 0.6, stagger: 0.06, delay: 0.2 });
 
-      // pinned pack opening
+      // the pack opens as you scroll: the story of the shop in one moment
       const tl = gsap.timeline({
-        scrollTrigger: { trigger: ".pack-stage", start: "top top", end: "+=1800", scrub: 1, pin: true },
+        defaults: { ease: "none" },
+        scrollTrigger: { trigger: ".pack-stage", start: "top top", end: "+=1600", scrub: 0.6, pin: true },
       });
-      tl.to(".pack-top", { yPercent: -140, rotate: -14, opacity: 0, duration: 1, ease: "power2.in" })
-        .to(".pack-body", { yPercent: 70, opacity: 0, duration: 1 }, 0.6)
-        .fromTo(".pack-card", { y: 60, scale: 0.6, opacity: 0 }, { y: 0, scale: 1, opacity: 1, stagger: 0.15, duration: 1 }, 0.7)
+      tl.to(".pack-crimp", { yPercent: -120, rotate: -6, opacity: 0, duration: 1 })
+        .to(".pack-body", { yPercent: 60, opacity: 0, duration: 1 }, 0.5)
+        .fromTo(".pack-card", { y: 40, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.12, duration: 0.8 }, 0.6)
         .to(".pack-card", {
-          x: (i) => (i - 2) * 190,
-          rotate: (i) => (i - 2) * 8,
-          y: (i) => Math.abs(i - 2) * 24,
-          stagger: 0.05, duration: 1.4, ease: "power3.inOut",
-        }, ">-0.2")
-        .from(".pack-caption", { opacity: 0, y: 30, duration: 0.6 }, "<0.6");
-
-      // featured grid
-      gsap.utils.toArray<HTMLElement>(".feat").forEach((el, i) => {
-        gsap.from(el, {
-          y: 120, rotate: i % 2 ? 6 : -6, opacity: 0, duration: 1.1, ease: "expo.out",
-          scrollTrigger: { trigger: el, start: "top 90%" },
-        });
-      });
-    });
-    // smaller screens: pack cards fan tighter
-    mm.add("(max-width: 700px) and (prefers-reduced-motion: no-preference)", () => {
-      gsap.set(".pack-row", { scale: 0.55 });
+          x: (i) => `${(i - 2) * 108}%`,
+          rotate: (i) => (i - 2) * 4,
+          y: (i) => Math.abs(i - 2) * 16,
+          duration: 1.4, ease: "power2.inOut",
+        }, ">-0.1")
+        .from(".pack-caption", { opacity: 0, y: 8, duration: 0.5 }, "<0.8");
     });
   }, { scope: root });
 
   return (
     <div ref={root}>
-      {/* ---------- hero ---------- */}
-      <section className="hero relative flex min-h-[100svh] flex-col items-center overflow-hidden px-4 pt-32 text-center">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_20%,rgba(179,136,255,.22),transparent_70%),radial-gradient(40%_40%_at_80%_70%,rgba(95,212,255,.14),transparent),radial-gradient(40%_40%_at_15%_80%,rgba(255,95,162,.14),transparent)]" />
-        <p className="hero-sub relative font-mono text-xs uppercase tracking-[0.3em] text-dim">Graded · Raw · Sealed-fresh pulls</p>
-        <SplitText
-          tag="h1"
-          text="Pull the card, skip the pack."
-          className="relative mt-5 max-w-4xl font-display text-[clamp(44px,9vw,120px)] font-extrabold leading-[0.92] tracking-[-0.04em]"
-          splitType="chars"
-          effect="rise"
-          trigger="load"
-          delay={30}
-          duration={0.9}
-          hoverEffect="wave"
-        />
-        <p className="hero-sub relative mt-6 max-w-lg text-lg text-dim">
-          Hand-checked singles from the newest sets and the classics. Tilt a card to see the foil, then add it to your binder.
-        </p>
-        <div className="hero-sub relative mt-8 flex gap-3">
-          <Magnet padding={60} magnetStrength={3}>
-            <Link to="/shop" className="btn btn-lime text-lg">Shop all {CARDS.length} cards</Link>
-          </Magnet>
-          <a href="#pack" className="btn btn-ghost">Open a pack</a>
+      {/* ---------- hero: copy on the left, the play mat on the right ---------- */}
+      <section className="mx-auto grid min-h-[100svh] max-w-[1280px] items-center gap-12 px-6 pb-16 pt-28 sm:px-8 lg:grid-cols-[1fr_1.05fr] lg:gap-16">
+        <div>
+          <p className="hero-in font-mono text-[12px] text-ink-3">{STOCK.length} cards in stock · {OLDEST} to today</p>
+          <SplitText
+            tag="h1"
+            text="Single Pokémon cards, checked and sleeved"
+            className="mt-4 max-w-[13ch] font-serif text-[44px] leading-[1.04] tracking-[-0.02em] sm:text-[64px] sm:tracking-[-0.03em]"
+            splitType="words"
+            effect="fade"
+            trigger="load"
+            delay={40}
+            duration={0.5}
+            textAlign="left"
+          />
+          <p className="hero-in mt-6 max-w-[36rem] text-[18px] leading-[28px] text-ink-2">
+            Raw and graded singles, from Base Set holos to this year’s illustration rares. Every card ships in a penny sleeve and top-loader, priced in rupees, dollars, euros or pounds.
+          </p>
+          <div className="hero-in mt-8 flex flex-wrap gap-3">
+            <Link to="/shop" className="btn btn-primary">
+              Shop all cards
+              <ArrowRight size={16} strokeWidth={1.5} />
+            </Link>
+            <a href="#pack" className="btn btn-secondary">Open a pack</a>
+          </div>
         </div>
 
-        <div className="hero-fan relative mt-14 flex h-[340px] w-full max-w-4xl items-end justify-center sm:h-[400px]">
-          {HERO.map((card, i) => (
-            <div
-              key={card.id}
-              className="hero-card absolute bottom-0 w-[150px] sm:w-[210px]"
-              style={{
-                transform: `translateX(${(i - 2) * 64}%) rotate(${(i - 2) * 9}deg) translateY(${Math.abs(i - 2) * 22}px)`,
-                zIndex: 10 - Math.abs(i - 2),
-              }}
-            >
-              <Link to={`/card/${card.id}`} aria-label={card.name}>
-                <HoloCard card={card} />
+        <div className="relative rounded-[20px] bg-felt p-8 sm:p-12">
+          <div aria-hidden className="absolute inset-0 rounded-[20px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06),inset_0_24px_48px_-24px_rgba(0,0,0,0.35)]" />
+          <div className="relative grid grid-cols-[1fr_1.25fr_1fr] items-end gap-3 sm:gap-5">
+            {HERO.map((card, i) => (
+              <Link key={card.id} to={`/card/${card.id}`} className={`hero-card relative block ${i === 1 ? "" : "mb-6"}`}>
+                <HoloCard card={card} eager large={i === 1} />
+                {i === 1 && (
+                  <span className="sticker absolute -bottom-2 right-3">
+                    {price(card.usd)}
+                    <small>NM</small>
+                  </span>
+                )}
               </Link>
-            </div>
-          ))}
+            ))}
+          </div>
+          <div className="relative mt-8 flex items-baseline justify-between gap-4 text-[13px] text-white/70">
+            <span>{lead.name} · {lead.set}</span>
+            <span className="font-mono">{lead.rarity}</span>
+          </div>
         </div>
-      </section>
-
-      {/* ---------- marquee ---------- */}
-      <section className="border-y border-line bg-night-2 py-6" aria-hidden>
-        <ScrollVelocity
-          texts={["Charizard ex ✦ Umbreon VMAX ✦ Pikachu VMAX ✦ Rayquaza ✦ ", "PSA 10 ✦ Secret Rare ✦ Near Mint ✦ Alt Art ✦ "]}
-          velocity={60}
-          fontSize="clamp(28px,5vw,64px)"
-          fontWeight={800}
-          outlineAlternate
-          gap={24}
-          className="font-display tracking-tight"
-        />
       </section>
 
       {/* ---------- pack opening ---------- */}
-      <section id="pack" className="pack-stage relative flex h-[100svh] flex-col items-center justify-center overflow-hidden">
-        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(50%_50%_at_50%_55%,rgba(212,255,58,.12),transparent_70%)]" />
-        <p className="absolute top-28 font-mono text-xs uppercase tracking-[0.3em] text-dim">Keep scrolling to tear it open</p>
-        <div className="pack-row relative flex h-[420px] w-[260px] items-center justify-center">
+      <section id="pack" className="pack-stage relative flex h-[100svh] flex-col items-center justify-center overflow-hidden border-y border-hair bg-raised">
+        <p className="absolute top-24 text-[14px] text-ink-2">Scroll to open</p>
+        <div className="relative h-[300px] w-[186px] sm:h-[400px] sm:w-[248px]">
           {PACK.map((card, i) => (
-            <div key={card.id} className="pack-card absolute w-[200px] opacity-0" style={{ zIndex: i }}>
-              <HoloCard card={card} />
+            <div key={card.id} className="pack-card absolute inset-x-0 top-0 opacity-0" style={{ zIndex: i }}>
+              <HoloCard card={card} interactive={false} />
             </div>
           ))}
-          <div className="pack-body absolute inset-0 z-10 overflow-hidden rounded-[22px] border border-white/20 bg-[linear-gradient(160deg,#ff5fa2,#7b2ff7_45%,#1d1a2c)] shadow-2xl">
-            <div className="absolute inset-0 opacity-50 [background:repeating-linear-gradient(110deg,transparent_0_14px,rgba(255,255,255,.12)_14px_16px)]" />
-            <div className="absolute inset-x-0 bottom-10 text-center">
-              <p className="font-display text-5xl font-extrabold tracking-tight">HOLO</p>
-              <p className="foil-text font-display text-5xl font-extrabold tracking-tight">FOIL</p>
-              <p className="mt-2 font-mono text-[10px] tracking-[0.3em] text-white/70">5 CARD BOOSTER</p>
-            </div>
+          <div className="pack-body absolute inset-0 z-10 flex flex-col items-center justify-end overflow-hidden rounded-[10px] bg-[linear-gradient(180deg,#22654f,#1a4f40)] pb-10 text-white shadow-[0_12px_28px_-14px_rgba(31,27,22,0.4)]">
+            <span aria-hidden className="mb-4 h-[36px] w-[26px] rounded-[4px] bg-white/90" />
+            <p className="font-serif text-[36px] leading-none">Holofoil</p>
+            <p className="mt-3 font-mono text-[12px] text-white/70">5 cards · all hits</p>
           </div>
-          <div className="pack-top absolute inset-x-0 top-0 z-20 h-16 rounded-t-[22px] border border-white/20 bg-[linear-gradient(180deg,#d4ff3a,#9ccc1f)] [clip-path:polygon(0_0,100%_0,100%_70%,92%_100%,84%_70%,76%_100%,68%_70%,60%_100%,52%_70%,44%_100%,36%_70%,28%_100%,20%_70%,12%_100%,4%_70%,0_100%)]" />
+          <div className="pack-crimp absolute inset-x-0 top-0 z-20 h-10 rounded-t-[10px] bg-[#1a4f40] [clip-path:polygon(0_0,100%_0,100%_75%,95%_100%,90%_75%,85%_100%,80%_75%,75%_100%,70%_75%,65%_100%,60%_75%,55%_100%,50%_75%,45%_100%,40%_75%,35%_100%,30%_75%,25%_100%,20%_75%,15%_100%,10%_75%,5%_100%,0_75%)]" />
         </div>
-        <p className="pack-caption absolute bottom-16 max-w-md px-6 text-center text-lg text-dim">
-          Five hits, no bulk. Every one of these is in stock right now.
+        <p className="pack-caption absolute bottom-16 max-w-sm px-6 text-center text-[15px] text-ink-2">
+          Five cards from the case, no bulk. Each one is in stock now.
         </p>
       </section>
 
-      {/* ---------- stats ---------- */}
-      <section className="mx-auto grid max-w-6xl gap-px overflow-hidden rounded-3xl border border-line bg-line sm:grid-cols-3">
+      {/* ---------- stock figures ---------- */}
+      <section className="mx-auto mt-24 grid max-w-[1280px] gap-4 px-6 sm:grid-cols-3 sm:px-8">
         {[
-          { to: 24, suffix: "", label: "cards in stock today" },
-          { to: 100, prefix: "$", label: "free shipping from" },
-          { to: 48, suffix: "h", label: "to dispatch, sleeved and top-loaded" },
+          { to: COPIES, label: "copies in stock" },
+          { to: SETS, label: "sets represented" },
+          { to: OLDEST, label: "oldest card, Base Set", plain: true },
         ].map((s) => (
-          <div key={s.label} className="bg-night-2 p-10">
-            <CountUp to={s.to} prefix={s.prefix} suffix={s.suffix} duration={1.6} className="font-display text-7xl font-extrabold tracking-tight" />
-            <p className="mt-2 text-dim">{s.label}</p>
+          <div key={s.label} className="rounded-2xl bg-card p-6 shadow-[inset_0_0_0_1px_var(--color-hair)]">
+            <CountUp to={s.to} from={s.plain ? s.to - 20 : 0} separator={s.plain ? "" : ","} duration={1.2} className="tnum font-serif text-[48px] leading-none" />
+            <p className="mt-3 text-[14px] text-ink-2">{s.label}</p>
           </div>
         ))}
       </section>
 
-      {/* ---------- featured ---------- */}
-      <section className="mx-auto max-w-6xl px-4 py-28 sm:px-6">
-        <div className="mb-12 flex flex-wrap items-end justify-between gap-4">
-          <h2 className="font-display text-[clamp(36px,6vw,72px)] font-extrabold leading-none tracking-[-0.03em]">
-            Secret rares,<br /><span className="foil-text">fresh in the case.</span>
-          </h2>
-          <Link to="/shop" className="btn btn-ghost">See everything</Link>
+      {/* ---------- most valuable ---------- */}
+      <section className="mx-auto mt-24 max-w-[1280px] px-6 sm:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="font-serif text-[40px] leading-[1.1] tracking-[-0.02em]">The top of the case</h2>
+            <p className="mt-2 text-ink-2">The eight most valuable cards in stock right now</p>
+          </div>
+          <Link to="/shop" className="btn btn-secondary btn-sm">See all {STOCK.length} cards</Link>
         </div>
-        <div className="grid grid-cols-2 gap-5 md:grid-cols-3">
-          {FEATURED.map((card) => (
-            <article key={card.id} className="feat group">
-              <Link to={`/card/${card.id}`}><HoloCard card={card} /></Link>
-              <div className="mt-4 flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-bold">{card.name}</p>
-                  <p className="text-sm text-dim">{card.condition}</p>
-                </div>
-                <button
-                  className="rounded-full bg-night-3 px-3 py-1.5 font-mono text-sm transition-colors hover:bg-lime hover:text-night"
-                  onClick={() => { add(card.id); notify(`${card.name} added to your binder`); }}
-                  aria-label={`Add ${card.name} to cart`}
-                >
-                  {money(card.price)} +
-                </button>
-              </div>
-            </article>
-          ))}
+        <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-12 md:grid-cols-4">
+          {TOP.map((card) => <Tile key={card.id} card={card} />)}
         </div>
       </section>
     </div>

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { byId, type Card } from "./cards";
+import { byId, type StockItem } from "@/data/stock";
+import { convert, format, FREE_SHIP_USD, SHIP_USD, type Currency } from "./currency";
 
 /* ---------- storage helpers (never throw: private windows can block storage) ---------- */
 const read = <T,>(key: string, fallback: T): T => {
@@ -20,7 +21,7 @@ const write = (key: string, value: unknown) => {
 
 /* ---------- password database: salted PBKDF2 hashes, never plain text ---------- */
 type UserRecord = { email: string; name: string; salt: string; hash: string; created: number };
-export type Order = { id: string; email: string; items: { id: string; qty: number; price: number }[]; total: number; placed: number };
+export type Order = { id: string; email: string; items: { id: string; qty: number; usd: number }[]; totalUsd: number; currency: Currency; total: number; placed: number };
 
 const toHex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -35,9 +36,13 @@ async function hashPassword(password: string, saltHex: string) {
 type CartLine = { id: string; qty: number };
 type Ctx = {
   cart: CartLine[];
-  cartCards: { card: Card; qty: number }[];
+  cartCards: { card: StockItem; qty: number }[];
   count: number;
   subtotal: number;
+  shipping: number;
+  currency: Currency;
+  setCurrency: (c: Currency) => void;
+  price: (usd: number) => string;
   add: (id: string, qty?: number) => void;
   setQty: (id: string, qty: number) => void;
   remove: (id: string) => void;
@@ -57,17 +62,19 @@ type Ctx = {
 const StoreCtx = createContext<Ctx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<CartLine[]>(() => read("hf.cart", []));
+  const [cart, setCart] = useState<CartLine[]>(() => read("hf.cart.v2", []));
   const [users, setUsers] = useState<UserRecord[]>(() => read("hf.users", []));
   const [session, setSession] = useState<string | null>(() => read("hf.session", null));
-  const [orders, setOrders] = useState<Order[]>(() => read("hf.orders", []));
+  const [orders, setOrders] = useState<Order[]>(() => read("hf.orders.v2", []));
   const [drawer, setDrawer] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<Currency>(() => read("hf.currency", "INR"));
+  useEffect(() => write("hf.currency", currency), [currency]);
 
-  useEffect(() => write("hf.cart", cart), [cart]);
+  useEffect(() => write("hf.cart.v2", cart), [cart]);
   useEffect(() => write("hf.users", users), [users]);
   useEffect(() => write("hf.session", session), [session]);
-  useEffect(() => write("hf.orders", orders), [orders]);
+  useEffect(() => write("hf.orders.v2", orders), [orders]);
 
   const notify = useCallback((msg: string) => {
     setToast(msg);
@@ -79,14 +86,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!card) return;
     setCart((c) => {
       const line = c.find((l) => l.id === id);
-      const next = Math.min(card.stock, (line?.qty ?? 0) + qty);
+      const next = Math.min(card.qty, (line?.qty ?? 0) + qty);
       return line ? c.map((l) => (l.id === id ? { ...l, qty: next } : l)) : [...c, { id, qty: next }];
     });
   }, []);
   const setQty = useCallback((id: string, qty: number) => {
     const card = byId(id);
     if (!card) return;
-    setCart((c) => (qty <= 0 ? c.filter((l) => l.id !== id) : c.map((l) => (l.id === id ? { ...l, qty: Math.min(card.stock, qty) } : l))));
+    setCart((c) => (qty <= 0 ? c.filter((l) => l.id !== id) : c.map((l) => (l.id === id ? { ...l, qty: Math.min(card.qty, qty) } : l))));
   }, []);
   const remove = useCallback((id: string) => setCart((c) => c.filter((l) => l.id !== id)), []);
   const clear = useCallback(() => setCart([]), []);
@@ -99,7 +106,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [cart],
   );
   const count = cartCards.reduce((s, l) => s + l.qty, 0);
-  const subtotal = cartCards.reduce((s, l) => s + l.qty * l.card.price, 0);
+  const subtotal = cartCards.reduce((s, l) => s + l.qty * l.card.usd, 0);
+  const shipping = subtotal === 0 || subtotal >= FREE_SHIP_USD ? 0 : SHIP_USD;
 
   const user = useMemo(() => {
     const u = users.find((x) => x.email === session);
@@ -135,17 +143,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const order: Order = {
       id: "HF-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
       email: user.email,
-      items: cartCards.map((l) => ({ id: l.card.id, qty: l.qty, price: l.card.price })),
-      total: subtotal + (subtotal >= 100 ? 0 : 6),
+      items: cartCards.map((l) => ({ id: l.card.id, qty: l.qty, usd: l.card.usd })),
+      totalUsd: subtotal + shipping,
+      currency,
+      total: convert(subtotal + shipping, currency),
       placed: Date.now(),
     };
     setOrders((o) => [order, ...o]);
     setCart([]);
     return order;
-  }, [user, cartCards, subtotal]);
+  }, [user, cartCards, subtotal, shipping, currency]);
 
   const value: Ctx = {
-    cart, cartCards, count, subtotal, add, setQty, remove, clear, drawer, setDrawer,
+    cart, cartCards, count, subtotal, shipping, currency, setCurrency, price: (usd: number) => format(usd, currency), add, setQty, remove, clear, drawer, setDrawer,
     user, register, login, logout, orders: orders.filter((o) => o.email === user?.email), placeOrder, toast, notify,
   };
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
